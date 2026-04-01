@@ -1,0 +1,11 @@
+{
+  "signal_id": "df1eab71-aa5f-4ce2-9915-64ccf314e3b9",
+  "baseline_confidence": 0.72,
+  "confidence_delta": 0.08,
+  "updated_confidence": 0.8,
+  "confidence_band": "elevated",
+  "disposition": "escalate",
+  "reasoning": "deterministic contract smoke validation",
+  "trace_id": "trace-contract-smoke-001",
+  "correlation_id": "00000000-0000-0000-0000-000000000001"
+}

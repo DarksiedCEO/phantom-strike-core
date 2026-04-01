@@ -1,0 +1,13 @@
+{
+  "signal_id": "5dcf77db-4ceb-4d10-b7bd-3d1c40d1971c",
+  "decision": {
+    "baseline_confidence": 0.72,
+    "confidence_delta": 0.08,
+    "updated_confidence": 0.8,
+    "confidence_band": "elevated",
+    "disposition": "escalate",
+    "reasoning": "this should fail"
+  },
+  "trace_id": "trace-contract-smoke-bad-001",
+  "correlation_id": "00000000-0000-0000-0000-000000000002"
+}

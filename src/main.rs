@@ -13,6 +13,7 @@ use app::build_router;
 use config::AppConfig;
 use contracts::SchemaRegistry;
 use observability::init_tracing;
+use services::signal_decision::SignalDecisionService;
 use services::signal_ingestion::SignalIngestionService;
 use tokio::net::TcpListener;
 use tracing::info;
@@ -31,8 +32,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let schema_registry = SchemaRegistry::load(&config.contracts_schema_dir)?;
     let signal_ingestion = SignalIngestionService::new();
+    let signal_decision = SignalDecisionService::new();
 
-    let router = build_router(config.clone(), schema_registry, signal_ingestion);
+    let router = build_router(
+        config.clone(),
+        schema_registry,
+        signal_ingestion,
+        signal_decision,
+    );
     let address = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = TcpListener::bind(address).await?;
 

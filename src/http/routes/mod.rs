@@ -10,4 +10,8 @@ pub fn router() -> Router<crate::app::AppState> {
         .route("/health", get(health::health))
         .route("/version", get(version::version))
         .route("/v1/signals", post(signals::create_signal))
+        .route(
+            "/v1/signals/:signal_id/decision",
+            post(signals::submit_signal_decision),
+        )
 }

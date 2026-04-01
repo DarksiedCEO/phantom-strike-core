@@ -1,0 +1,90 @@
+name: core-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  core-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out core
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run core tests
+        run: cargo test
+
+  core-contract-smoke:
+    runs-on: ubuntu-latest
+    needs: core-test
+    timeout-minutes: 15
+
+    env:
+      PORT: "3100"
+      CORE_BASE_URL: "http://127.0.0.1:3100"
+      CONTRACTS_SCHEMA_DIR: ${{ github.workspace }}/phantom-strike-contracts/schemas/v1
+
+    steps:
+      - name: Check out core
+        uses: actions/checkout@v4
+
+      - name: Check out contracts
+        uses: actions/checkout@v4
+        with:
+          repository: DarksiedCEO/phantom-strike-contracts
+          ref: 3110d87
+          path: phantom-strike-contracts
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Start core
+        run: cargo run > core.log 2>&1 &
+
+      - name: Wait for core readiness
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if python3 - <<'PY'
+import socket
+
+sock = socket.socket()
+sock.settimeout(1)
+try:
+    sock.connect(("127.0.0.1", 3100))
+except OSError:
+    raise SystemExit(1)
+finally:
+    sock.close()
+PY
+            then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "SMOKE FAIL: core never bound to 127.0.0.1:3100"
+          exit 1
+
+      - name: Run contract smoke
+        run: python3 -m scripts.smoke_contract_decision_submit
+
+      - name: Upload core logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-contract-smoke-logs
+          path: core.log
+          if-no-files-found: ignore

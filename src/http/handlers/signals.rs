@@ -139,6 +139,14 @@ mod tests {
         },
     };
 
+    fn test_contracts_schema_dir() -> PathBuf {
+        std::env::var("CONTRACTS_SCHEMA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                PathBuf::from("/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1")
+            })
+    }
+
     fn test_config() -> AppConfig {
         AppConfig {
             service_name: "phantom-strike-core",
@@ -146,9 +154,7 @@ mod tests {
             environment: "test".to_string(),
             log_level: "debug".to_string(),
             port: 3000,
-            contracts_schema_dir: PathBuf::from(
-                "/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1",
-            ),
+            contracts_schema_dir: test_contracts_schema_dir(),
             contracts_commit: "3110d87",
         }
     }
@@ -171,10 +177,7 @@ mod tests {
     async fn accepts_valid_signal_decision_payload() {
         let app = build_router(
             test_config(),
-            SchemaRegistry::load(&PathBuf::from(
-                "/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1",
-            ))
-            .expect("schemas should load"),
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
             SignalIngestionService::new(),
             SignalDecisionService::new(),
         );
@@ -206,10 +209,7 @@ mod tests {
     async fn rejects_invalid_signal_decision_payload() {
         let app = build_router(
             test_config(),
-            SchemaRegistry::load(&PathBuf::from(
-                "/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1",
-            ))
-            .expect("schemas should load"),
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
             SignalIngestionService::new(),
             SignalDecisionService::new(),
         );
@@ -239,10 +239,7 @@ mod tests {
     async fn rejects_signal_id_mismatch() {
         let app = build_router(
             test_config(),
-            SchemaRegistry::load(&PathBuf::from(
-                "/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1",
-            ))
-            .expect("schemas should load"),
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
             SignalIngestionService::new(),
             SignalDecisionService::new(),
         );

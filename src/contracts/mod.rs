@@ -66,6 +66,14 @@ mod tests {
 
     use super::SchemaRegistry;
 
+    fn test_contracts_schema_dir() -> PathBuf {
+        std::env::var("CONTRACTS_SCHEMA_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                PathBuf::from("/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1")
+            })
+    }
+
     #[test]
     fn fails_startup_when_required_schema_is_missing() {
         let temp_dir = std::env::temp_dir().join(format!(
@@ -76,15 +84,13 @@ mod tests {
         fs::create_dir_all(&temp_dir).expect("temp dir should be created");
 
         fs::copy(
-            PathBuf::from("/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1")
-                .join("signal.json"),
+            test_contracts_schema_dir().join("signal.json"),
             temp_dir.join("signal.json"),
         )
         .expect("signal schema should copy");
 
         fs::copy(
-            PathBuf::from("/Users/andrelove/IdeaProjects/phantom-strike-contracts/schemas/v1")
-                .join("confidenceGate.json"),
+            test_contracts_schema_dir().join("confidenceGate.json"),
             temp_dir.join("confidenceGate.json"),
         )
         .expect("confidence gate schema should copy");

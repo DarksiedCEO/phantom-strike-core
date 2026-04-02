@@ -106,6 +106,9 @@ pub async fn submit_signal_decision(
     }
 
     let data = state.signal_decision.submit(&decision, &context);
+    let data = data.map_err(|error| {
+        error.into_response_with_context(&state.config, &context, "decisionSubmissionResult")
+    })?;
 
     Ok(Json(SuccessEnvelope::new(
         data,
@@ -138,7 +141,11 @@ pub async fn get_signal_decision(
                     }
                 })),
             )
-            .into_response_with_context(&state.config, &context, "signalDecisionRecord")
+            .into_response_with_context(
+                &state.config,
+                &context,
+                "signalDecisionRecord",
+            )
         })?;
     let confidence_band = record.confidence_band.clone();
 
@@ -190,8 +197,24 @@ mod tests {
             log_level: "debug".to_string(),
             port: 3000,
             contracts_schema_dir: test_contracts_schema_dir(),
+            decision_store_path: std::env::temp_dir().join(format!(
+                "phantom-strike-core-handler-test-{}.json",
+                uuid::Uuid::new_v4()
+            )),
             contracts_commit: "528603a",
         }
+    }
+
+    fn build_test_app() -> axum::Router {
+        let config = test_config();
+        let decision_store_path = config.decision_store_path.clone();
+
+        build_router(
+            config,
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
+            SignalIngestionService::new(),
+            SignalDecisionService::new(decision_store_path).expect("decision service should load"),
+        )
     }
 
     fn valid_decision_payload(signal_id: &str) -> Value {
@@ -210,12 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn accepts_valid_signal_decision_payload() {
-        let app = build_router(
-            test_config(),
-            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
-            SignalIngestionService::new(),
-            SignalDecisionService::new(),
-        );
+        let app = build_test_app();
 
         let request = Request::builder()
             .method("POST")
@@ -242,12 +260,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_invalid_signal_decision_payload() {
-        let app = build_router(
-            test_config(),
-            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
-            SignalIngestionService::new(),
-            SignalDecisionService::new(),
-        );
+        let app = build_test_app();
 
         let request = Request::builder()
             .method("POST")
@@ -272,12 +285,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_signal_id_mismatch() {
-        let app = build_router(
-            test_config(),
-            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
-            SignalIngestionService::new(),
-            SignalDecisionService::new(),
-        );
+        let app = build_test_app();
 
         let request = Request::builder()
             .method("POST")
@@ -302,12 +310,7 @@ mod tests {
 
     #[tokio::test]
     async fn retrieves_persisted_signal_decision() {
-        let app = build_router(
-            test_config(),
-            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
-            SignalIngestionService::new(),
-            SignalDecisionService::new(),
-        );
+        let app = build_test_app();
 
         let submit_request = Request::builder()
             .method("POST")
@@ -318,7 +321,11 @@ mod tests {
             ))
             .expect("request should build");
 
-        let submit_response = app.clone().oneshot(submit_request).await.expect("submit should succeed");
+        let submit_response = app
+            .clone()
+            .oneshot(submit_request)
+            .await
+            .expect("submit should succeed");
         assert_eq!(submit_response.status(), StatusCode::OK);
 
         let get_request = Request::builder()
@@ -327,7 +334,10 @@ mod tests {
             .body(Body::empty())
             .expect("request should build");
 
-        let response = app.oneshot(get_request).await.expect("response should succeed");
+        let response = app
+            .oneshot(get_request)
+            .await
+            .expect("response should succeed");
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -336,7 +346,10 @@ mod tests {
         let json: Value = serde_json::from_slice(&body).expect("body should be json");
 
         assert_eq!(json["success"], true);
-        assert_eq!(json["data"]["signal_id"], "df1eab71-aa5f-4ce2-9915-64ccf314e3b9");
+        assert_eq!(
+            json["data"]["signal_id"],
+            "df1eab71-aa5f-4ce2-9915-64ccf314e3b9"
+        );
         assert_eq!(json["data"]["disposition"], "escalate");
         assert_eq!(json["data"]["confidence_band"], "elevated");
         assert_eq!(json["meta"]["confidence_band"], "elevated");
@@ -344,12 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn returns_not_found_for_missing_signal_decision() {
-        let app = build_router(
-            test_config(),
-            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
-            SignalIngestionService::new(),
-            SignalDecisionService::new(),
-        );
+        let app = build_test_app();
 
         let request = Request::builder()
             .method("GET")

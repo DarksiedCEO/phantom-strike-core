@@ -32,7 +32,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let schema_registry = SchemaRegistry::load(&config.contracts_schema_dir)?;
     let signal_ingestion = SignalIngestionService::new();
-    let signal_decision = SignalDecisionService::new();
+    let signal_decision = SignalDecisionService::new(config.decision_store_path.clone())?;
 
     let router = build_router(
         config.clone(),
@@ -47,6 +47,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         service = config.service_name,
         environment = config.environment,
         contracts_schema_dir = %config.contracts_schema_dir.display(),
+        decision_store_path = %config.decision_store_path.display(),
         "phantom-strike-core started"
     );
 

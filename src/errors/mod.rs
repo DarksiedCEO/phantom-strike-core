@@ -19,6 +19,8 @@ pub enum AppError {
     #[error("{message}")]
     SchemaLoading { message: String },
     #[error("{message}")]
+    Persistence { message: String },
+    #[error("{message}")]
     NotFound {
         code: &'static str,
         message: String,
@@ -45,6 +47,12 @@ impl AppError {
         }
     }
 
+    pub fn persistence(message: impl Into<String>) -> Self {
+        Self::Persistence {
+            message: message.into(),
+        }
+    }
+
     pub fn validation(
         code: &'static str,
         message: impl Into<String>,
@@ -57,7 +65,11 @@ impl AppError {
         }
     }
 
-    pub fn not_found(code: &'static str, message: impl Into<String>, details: Option<Value>) -> Self {
+    pub fn not_found(
+        code: &'static str,
+        message: impl Into<String>,
+        details: Option<Value>,
+    ) -> Self {
         Self::NotFound {
             code,
             message: message.into(),
@@ -82,6 +94,13 @@ impl AppError {
             Self::SchemaLoading { message } => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "SCHEMA_LOADING_FAILED",
+                message,
+                None,
+                false,
+            ),
+            Self::Persistence { message } => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "PERSISTENCE_FAILURE",
                 message,
                 None,
                 false,

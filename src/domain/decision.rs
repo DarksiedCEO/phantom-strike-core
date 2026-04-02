@@ -27,7 +27,7 @@ pub struct DecisionSubmissionResult {
     pub correlation_id: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SignalDecisionRecord {
     pub signal_id: String,
     pub baseline_confidence: f64,

@@ -14,4 +14,12 @@ pub fn router() -> Router<crate::app::AppState> {
             "/v1/signals/:signal_id/decision",
             get(signals::get_signal_decision).post(signals::submit_signal_decision),
         )
+        .route(
+            "/v1/decisions/by-trace/:trace_id",
+            get(signals::get_signal_decision_by_trace_id),
+        )
+        .route(
+            "/v1/decisions/by-correlation/:correlation_id",
+            get(signals::get_signal_decision_by_correlation_id),
+        )
 }

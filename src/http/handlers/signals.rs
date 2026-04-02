@@ -161,6 +161,84 @@ pub async fn get_signal_decision(
     )))
 }
 
+pub async fn get_signal_decision_by_trace_id(
+    Path(trace_id): Path<String>,
+    State(state): State<AppState>,
+    Extension(context): Extension<RequestContext>,
+) -> Result<Json<SuccessEnvelope<SignalDecisionRecord>>, axum::response::Response> {
+    let record = state
+        .signal_decision
+        .get_by_trace_id(&trace_id)
+        .ok_or_else(|| {
+            AppError::not_found(
+                "SIGNAL_DECISION_NOT_FOUND",
+                "no decision record found for the requested trace_id",
+                Some(json!({
+                    "lookup": {
+                        "field": "trace_id",
+                        "value": trace_id
+                    }
+                })),
+            )
+            .into_response_with_context(
+                &state.config,
+                &context,
+                "signalDecisionRecord",
+            )
+        })?;
+    let confidence_band = record.confidence_band.clone();
+
+    Ok(Json(SuccessEnvelope::new(
+        record,
+        ResponseMeta::from_context(
+            &state.config,
+            &context,
+            "signalDecisionRecord",
+            Some(&confidence_band),
+            Vec::new(),
+        ),
+    )))
+}
+
+pub async fn get_signal_decision_by_correlation_id(
+    Path(correlation_id): Path<String>,
+    State(state): State<AppState>,
+    Extension(context): Extension<RequestContext>,
+) -> Result<Json<SuccessEnvelope<SignalDecisionRecord>>, axum::response::Response> {
+    let record = state
+        .signal_decision
+        .get_by_correlation_id(&correlation_id)
+        .ok_or_else(|| {
+            AppError::not_found(
+                "SIGNAL_DECISION_NOT_FOUND",
+                "no decision record found for the requested correlation_id",
+                Some(json!({
+                    "lookup": {
+                        "field": "correlation_id",
+                        "value": correlation_id
+                    }
+                })),
+            )
+            .into_response_with_context(
+                &state.config,
+                &context,
+                "signalDecisionRecord",
+            )
+        })?;
+    let confidence_band = record.confidence_band.clone();
+
+    Ok(Json(SuccessEnvelope::new(
+        record,
+        ResponseMeta::from_context(
+            &state.config,
+            &context,
+            "signalDecisionRecord",
+            Some(&confidence_band),
+            Vec::new(),
+        ),
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -362,6 +440,143 @@ mod tests {
         let request = Request::builder()
             .method("GET")
             .uri("/v1/signals/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/decision")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app.oneshot(request).await.expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], false);
+        assert_eq!(json["error"]["code"], "SIGNAL_DECISION_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn retrieves_persisted_signal_decision_by_trace_id() {
+        let app = build_test_app();
+
+        let submit_request = Request::builder()
+            .method("POST")
+            .uri("/v1/signals/df1eab71-aa5f-4ce2-9915-64ccf314e3b9/decision")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                valid_decision_payload("df1eab71-aa5f-4ce2-9915-64ccf314e3b9").to_string(),
+            ))
+            .expect("request should build");
+
+        let submit_response = app
+            .clone()
+            .oneshot(submit_request)
+            .await
+            .expect("submit should succeed");
+        assert_eq!(submit_response.status(), StatusCode::OK);
+
+        let get_request = Request::builder()
+            .method("GET")
+            .uri("/v1/decisions/by-trace/trace-001-alpha")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app
+            .oneshot(get_request)
+            .await
+            .expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], true);
+        assert_eq!(
+            json["data"]["signal_id"],
+            "df1eab71-aa5f-4ce2-9915-64ccf314e3b9"
+        );
+        assert_eq!(json["data"]["trace_id"], "trace-001-alpha");
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_for_missing_trace_lookup() {
+        let app = build_test_app();
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/decisions/by-trace/trace-missing-001")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app.oneshot(request).await.expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], false);
+        assert_eq!(json["error"]["code"], "SIGNAL_DECISION_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn retrieves_persisted_signal_decision_by_correlation_id() {
+        let app = build_test_app();
+
+        let submit_request = Request::builder()
+            .method("POST")
+            .uri("/v1/signals/df1eab71-aa5f-4ce2-9915-64ccf314e3b9/decision")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                valid_decision_payload("df1eab71-aa5f-4ce2-9915-64ccf314e3b9").to_string(),
+            ))
+            .expect("request should build");
+
+        let submit_response = app
+            .clone()
+            .oneshot(submit_request)
+            .await
+            .expect("submit should succeed");
+        assert_eq!(submit_response.status(), StatusCode::OK);
+
+        let get_request = Request::builder()
+            .method("GET")
+            .uri("/v1/decisions/by-correlation/e5b11411-2732-486f-9d0a-f4144ea20395")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app
+            .oneshot(get_request)
+            .await
+            .expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], true);
+        assert_eq!(
+            json["data"]["signal_id"],
+            "df1eab71-aa5f-4ce2-9915-64ccf314e3b9"
+        );
+        assert_eq!(
+            json["data"]["correlation_id"],
+            "e5b11411-2732-486f-9d0a-f4144ea20395"
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_for_missing_correlation_lookup() {
+        let app = build_test_app();
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/decisions/by-correlation/00000000-0000-0000-0000-000000000999")
             .body(Body::empty())
             .expect("request should build");
 

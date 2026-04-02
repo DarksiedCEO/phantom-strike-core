@@ -75,6 +75,24 @@ impl SignalDecisionService {
             .get(signal_id)
             .cloned()
     }
+
+    pub fn get_by_trace_id(&self, trace_id: &str) -> Option<SignalDecisionRecord> {
+        self.decisions
+            .read()
+            .expect("signal decision store read lock should succeed")
+            .values()
+            .find(|record| record.trace_id == trace_id)
+            .cloned()
+    }
+
+    pub fn get_by_correlation_id(&self, correlation_id: &str) -> Option<SignalDecisionRecord> {
+        self.decisions
+            .read()
+            .expect("signal decision store read lock should succeed")
+            .values()
+            .find(|record| record.correlation_id == correlation_id)
+            .cloned()
+    }
 }
 
 fn load_snapshot(store_path: &Path) -> Result<SignalDecisionStoreSnapshot, AppError> {
@@ -236,6 +254,39 @@ mod tests {
 
         assert_eq!(record.updated_confidence, 0.920);
         assert_eq!(record.confidence_band, "confirmed");
+
+        let _ = fs::remove_file(store_path);
+    }
+
+    #[test]
+    fn retrieves_persisted_decision_by_trace_and_correlation_id() {
+        let store_path = temp_store_path("operational-lookup");
+        let service = SignalDecisionService::new(store_path.clone()).expect("service should load");
+        let decision = ValidatedSignalDecision {
+            signal_id: "33333333-3333-4333-8333-333333333333".to_string(),
+            baseline_confidence: 0.62,
+            confidence_delta: 0.118,
+            updated_confidence: 0.738,
+            confidence_band: "elevated".to_string(),
+            disposition: "escalate".to_string(),
+            reasoning: "decision reasoning for operational lookup".to_string(),
+            trace_id: "trace-operational-lookup-001".to_string(),
+            correlation_id: "corr-operational-lookup-001".to_string(),
+        };
+
+        service
+            .submit(&decision, &test_context())
+            .expect("submit should persist");
+
+        let by_trace = service
+            .get_by_trace_id("trace-operational-lookup-001")
+            .expect("record should be found by trace_id");
+        let by_correlation = service
+            .get_by_correlation_id("corr-operational-lookup-001")
+            .expect("record should be found by correlation_id");
+
+        assert_eq!(by_trace.signal_id, decision.signal_id);
+        assert_eq!(by_correlation.signal_id, decision.signal_id);
 
         let _ = fs::remove_file(store_path);
     }

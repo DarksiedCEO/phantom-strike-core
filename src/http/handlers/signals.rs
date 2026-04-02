@@ -9,7 +9,7 @@ use crate::{
     app::AppState,
     contracts::validation::validate_payload,
     domain::{
-        decision::{DecisionSubmissionResult, ValidatedSignalDecision},
+        decision::{DecisionSubmissionResult, SignalDecisionRecord, ValidatedSignalDecision},
         signal::{SignalAcceptance, ValidatedSignal},
     },
     errors::AppError,
@@ -119,6 +119,41 @@ pub async fn submit_signal_decision(
     )))
 }
 
+pub async fn get_signal_decision(
+    Path(signal_id): Path<String>,
+    State(state): State<AppState>,
+    Extension(context): Extension<RequestContext>,
+) -> Result<Json<SuccessEnvelope<SignalDecisionRecord>>, axum::response::Response> {
+    let record = state
+        .signal_decision
+        .get_by_signal_id(&signal_id)
+        .ok_or_else(|| {
+            AppError::not_found(
+                "SIGNAL_DECISION_NOT_FOUND",
+                "no decision record found for the requested signal_id",
+                Some(json!({
+                    "lookup": {
+                        "field": "signal_id",
+                        "value": signal_id
+                    }
+                })),
+            )
+            .into_response_with_context(&state.config, &context, "signalDecisionRecord")
+        })?;
+    let confidence_band = record.confidence_band.clone();
+
+    Ok(Json(SuccessEnvelope::new(
+        record,
+        ResponseMeta::from_context(
+            &state.config,
+            &context,
+            "signalDecisionRecord",
+            Some(&confidence_band),
+            Vec::new(),
+        ),
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -155,7 +190,7 @@ mod tests {
             log_level: "debug".to_string(),
             port: 3000,
             contracts_schema_dir: test_contracts_schema_dir(),
-            contracts_commit: "3110d87",
+            contracts_commit: "528603a",
         }
     }
 
@@ -263,5 +298,74 @@ mod tests {
 
         assert_eq!(json["success"], false);
         assert_eq!(json["error"]["code"], "SIGNAL_ID_MISMATCH");
+    }
+
+    #[tokio::test]
+    async fn retrieves_persisted_signal_decision() {
+        let app = build_router(
+            test_config(),
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
+            SignalIngestionService::new(),
+            SignalDecisionService::new(),
+        );
+
+        let submit_request = Request::builder()
+            .method("POST")
+            .uri("/v1/signals/df1eab71-aa5f-4ce2-9915-64ccf314e3b9/decision")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                valid_decision_payload("df1eab71-aa5f-4ce2-9915-64ccf314e3b9").to_string(),
+            ))
+            .expect("request should build");
+
+        let submit_response = app.clone().oneshot(submit_request).await.expect("submit should succeed");
+        assert_eq!(submit_response.status(), StatusCode::OK);
+
+        let get_request = Request::builder()
+            .method("GET")
+            .uri("/v1/signals/df1eab71-aa5f-4ce2-9915-64ccf314e3b9/decision")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app.oneshot(get_request).await.expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], true);
+        assert_eq!(json["data"]["signal_id"], "df1eab71-aa5f-4ce2-9915-64ccf314e3b9");
+        assert_eq!(json["data"]["disposition"], "escalate");
+        assert_eq!(json["data"]["confidence_band"], "elevated");
+        assert_eq!(json["meta"]["confidence_band"], "elevated");
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_for_missing_signal_decision() {
+        let app = build_router(
+            test_config(),
+            SchemaRegistry::load(&test_contracts_schema_dir()).expect("schemas should load"),
+            SignalIngestionService::new(),
+            SignalDecisionService::new(),
+        );
+
+        let request = Request::builder()
+            .method("GET")
+            .uri("/v1/signals/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/decision")
+            .body(Body::empty())
+            .expect("request should build");
+
+        let response = app.oneshot(request).await.expect("response should succeed");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should read");
+        let json: Value = serde_json::from_slice(&body).expect("body should be json");
+
+        assert_eq!(json["success"], false);
+        assert_eq!(json["error"]["code"], "SIGNAL_DECISION_NOT_FOUND");
     }
 }

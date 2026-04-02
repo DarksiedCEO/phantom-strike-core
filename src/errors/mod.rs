@@ -19,6 +19,12 @@ pub enum AppError {
     #[error("{message}")]
     SchemaLoading { message: String },
     #[error("{message}")]
+    NotFound {
+        code: &'static str,
+        message: String,
+        details: Option<Value>,
+    },
+    #[error("{message}")]
     Validation {
         code: &'static str,
         message: String,
@@ -51,6 +57,14 @@ impl AppError {
         }
     }
 
+    pub fn not_found(code: &'static str, message: impl Into<String>, details: Option<Value>) -> Self {
+        Self::NotFound {
+            code,
+            message: message.into(),
+            details,
+        }
+    }
+
     pub fn into_response_with_context(
         self,
         config: &AppConfig,
@@ -72,6 +86,11 @@ impl AppError {
                 None,
                 false,
             ),
+            Self::NotFound {
+                code,
+                message,
+                details,
+            } => (StatusCode::NOT_FOUND, code, message, details, false),
             Self::Validation {
                 code,
                 message,

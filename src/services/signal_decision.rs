@@ -1,16 +1,22 @@
+use std::{collections::HashMap, sync::RwLock};
+
 use tracing::info;
 
 use crate::{
-    domain::decision::{DecisionSubmissionResult, ValidatedSignalDecision},
+    domain::decision::{DecisionSubmissionResult, SignalDecisionRecord, ValidatedSignalDecision},
     http::middleware::trace_context::RequestContext,
 };
 
 #[derive(Default)]
-pub struct SignalDecisionService;
+pub struct SignalDecisionService {
+    decisions: RwLock<HashMap<String, SignalDecisionRecord>>,
+}
 
 impl SignalDecisionService {
     pub fn new() -> Self {
-        Self
+        Self {
+            decisions: RwLock::new(HashMap::new()),
+        }
     }
 
     pub fn submit(
@@ -32,6 +38,22 @@ impl SignalDecisionService {
             "signal decision accepted after contract validation"
         );
 
+        self.decisions
+            .write()
+            .expect("signal decision store write lock should succeed")
+            .insert(
+                decision.signal_id.clone(),
+                SignalDecisionRecord::from_decision(decision),
+            );
+
         DecisionSubmissionResult::from_decision(decision)
+    }
+
+    pub fn get_by_signal_id(&self, signal_id: &str) -> Option<SignalDecisionRecord> {
+        self.decisions
+            .read()
+            .expect("signal decision store read lock should succeed")
+            .get(signal_id)
+            .cloned()
     }
 }

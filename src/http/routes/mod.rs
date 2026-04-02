@@ -12,6 +12,6 @@ pub fn router() -> Router<crate::app::AppState> {
         .route("/v1/signals", post(signals::create_signal))
         .route(
             "/v1/signals/:signal_id/decision",
-            post(signals::submit_signal_decision),
+            get(signals::get_signal_decision).post(signals::submit_signal_decision),
         )
 }

@@ -45,7 +45,7 @@ impl AppConfig {
             log_level: env::var("LOG_LEVEL").unwrap_or_else(|_| DEFAULT_LOG_LEVEL.to_string()),
             port,
             contracts_schema_dir,
-            contracts_commit: "3110d87",
+            contracts_commit: "528603a",
         })
     }
 }

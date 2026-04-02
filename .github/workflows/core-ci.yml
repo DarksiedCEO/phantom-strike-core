@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: DarksiedCEO/phantom-strike-contracts
-          ref: 6e129c9cd411e32a76a49a3b138c8e4c202ddbab
+          ref: 528603a7101bfd16e646bc7a09ec6ceb087c945a
           path: phantom-strike-contracts
 
       - name: Set up Rust
@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: DarksiedCEO/phantom-strike-contracts
-          ref: 6e129c9cd411e32a76a49a3b138c8e4c202ddbab
+          ref: 528603a7101bfd16e646bc7a09ec6ceb087c945a
           path: phantom-strike-contracts
 
       - name: Set up Rust

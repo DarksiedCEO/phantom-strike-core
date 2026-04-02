@@ -59,8 +59,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Build core
+        run: cargo build
+
       - name: Start core
-        run: cargo run > core.log 2>&1 &
+        run: ./target/debug/phantom-strike-core > core.log 2>&1 &
 
       - name: Wait for core readiness
         shell: bash
